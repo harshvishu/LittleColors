@@ -1,0 +1,32 @@
+Twemoji graphics by Twitter, Inc. and other contributors.
+Source: https://github.com/jdecked/twemoji/tree/b6b55fef1e8636b540a6d016a4729ca8cdf2e60b/assets/svg
+License: Creative Commons Attribution 4.0 International
+https://creativecommons.org/licenses/by/4.0/
+Little Colors adapted the silhouettes, separated paint regions, redrew selected contours, and simplified surface details.
+
+Adapted files in the source directory above:
+Carrot: 1f955.svg
+Peas: 1fadb.svg
+Cherries: 1f352.svg
+Pineapple: 1f34d.svg
+Strawberry: 1f353.svg
+Orange Slice: 1f34a.svg
+Radish: 1fadc.svg
+Ice Cream: 1f366.svg
+Guitar: 1f3b8.svg
+Pear: 1f350.svg
+Mushroom: 1f344.svg
+Cupcake: 1f9c1.svg
+Pizza Slice: 1f355.svg
+Whale: 1f40b.svg
+Snail: 1f40c.svg
+Elephant: 1f418.svg
+Ladybird: 1f41e.svg
+Bee: 1f41d.svg
+Turtle: 1f422.svg
+Frog: 1f438.svg
+Duck: 1f986.svg
+Butterfly: 1f98b.svg
+Tulip: 1f337.svg
+Cactus: 1f335.svg
+Fish: 1f41f.svg
