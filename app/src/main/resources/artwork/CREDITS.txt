@@ -30,3 +30,80 @@ Butterfly: 1f98b.svg
 Tulip: 1f337.svg
 Cactus: 1f335.svg
 Fish: 1f41f.svg
+Balloon: 1f388.svg
+Apple: 1f34e.svg
+Sailboat: 26f5.svg
+Moon: 1f319.svg
+Sunshine: 2600.svg
+Kite: 1fa81.svg
+Little House: 1f3e0.svg
+Water Drop: 1f4a7.svg
+Shooting Star: 1f320.svg
+Cookie: 1f36a.svg
+Birthday Cake: 1f382.svg
+Tea Cup: 1f375.svg
+Lemonade: 1f964.svg
+Jam Jar: 1fad9.svg
+Picnic Basket: 1f9fa.svg
+Frying Pan: 1f373.svg
+Fork: 1f374.svg
+Teapot: 1fad6.svg
+Jellyfish: 1fabc.svg
+Crab: 1f980.svg
+Caterpillar: 1f41b.svg
+Rabbit: 1f407.svg
+Bear: 1f43b.svg
+Fox: 1f98a.svg
+Cat: 1f408.svg
+Dog: 1f415.svg
+Mouse: 1f401.svg
+Owl: 1f989.svg
+Lion: 1f981.svg
+Penguin Chick: 1f427.svg
+Pine Tree: 1f332.svg
+Oak Tree: 1f333.svg
+Daisy: 1f33c.svg
+Leaf: 1f343.svg
+Mountain: 1f3d4.svg
+Island: 1f3dd.svg
+Snowman: 26c4.svg
+Cloud: 2601.svg
+Thunderstorm: 1f329.svg
+Snowflake: 2744.svg
+Volcano: 1f30b.svg
+Planet: 1fa90.svg
+Rocket: 1f680.svg
+Robot: 1f916.svg
+Train: 1f682.svg
+Bus: 1f68c.svg
+Truck: 1f69a.svg
+Airplane: 2708.svg
+Helicopter: 1f681.svg
+Tractor: 1f69c.svg
+Tent: 26fa.svg
+Castle: 1f3f0.svg
+Umbrella: 2602.svg
+Backpack: 1f392.svg
+Drum: 1f941.svg
+Bell: 1f514.svg
+Camera: 1f4f7.svg
+Clock: 1f552.svg
+Crown: 1f451.svg
+Celebration Cake: 1f370.svg
+
+Original Little Colors vector illustrations:
+Acorn
+Bow Tie
+Dragonfly
+Hot Air Balloon
+Ice Pop
+Lighthouse
+Seahorse
+Starfish
+Submarine
+Toy Blocks
+Treasure Chest
+Windmill
+Rain Boot
+Mitten
+Beanie

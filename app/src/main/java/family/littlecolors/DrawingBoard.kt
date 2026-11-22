@@ -329,19 +329,6 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
     }
     private val guidePosition = FloatArray(2)
 
-    private fun face(c: Canvas) {
-        val y = when (page) { 0 -> 140f; 1 -> 173f; else -> 223f }
-        val x = 160f
-        val size = if (page == 2) .7f else 1f
-        c.save(); c.translate(x,y); c.scale(size,size)
-        for (side in listOf(-1,1)) {
-            solid(ink); c.drawOval(side*18f-2.8f,-4f,side*18f+2.8f,3f,paint)
-            solid(0xfffea6a8.toInt()); c.drawOval(side*25f-5f,2f,side*25f+5f,7f,paint)
-        }
-        line(ink,2.6f); c.drawArc(-6f,-2f,6f,8f,8f,164f,false,paint)
-        c.restore()
-    }
-
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (lastTime >= 0) {
@@ -391,7 +378,6 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
             }
         }
         if (!freehand) {
-            if (outline == 1f && page < 3) face(canvas)
             if (done) {
                 for (i in 0..3) {
                     canvas.save()
