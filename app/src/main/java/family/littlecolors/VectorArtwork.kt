@@ -41,6 +41,11 @@ private val art by lazy {
 internal fun vectorPage(name: String): Picture {
     val page = art.getJSONObject(name)
     val regions = readPaths(page.getJSONArray("regions"))
-    return Picture(name,regions.map { it.path },previewColors = regions.map { it.color },
+    val colors = page.getJSONArray("palette")
+    val swatches = List(colors.length()) { i ->
+        val swatch = colors.getJSONArray(i)
+        swatch.getString(0) to Color.parseColor(swatch.getString(1))
+    }
+    return Picture(name,regions.map { it.path },swatches = swatches,previewColors = regions.map { it.color },
         marks = readPaths(page.getJSONArray("marks")))
 }

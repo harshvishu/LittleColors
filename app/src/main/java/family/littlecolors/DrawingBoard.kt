@@ -25,8 +25,9 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
     private var lastX = 0f
     private var lastY = 0f
     private val cursor = PointF()
-    private val outlineMillis get() = maxOf(9000f, totalLength * 12f)
-    private val fillMillis = 7000f
+    private val assistedSpeed = 1.15f
+    private val outlineMillis get() = maxOf(9000f, totalLength * 12f) / assistedSpeed
+    private val fillMillis = 7000f / assistedSpeed
     private val picture get() = pictures[page]
     private var outline = 0f
     private var fill = 0f
@@ -95,7 +96,7 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
         fill = 0f
         colors.clear()
         strokes.clear()
-        selected = if (freehand) palette.first().second else null
+        selected = if (freehand) picture.swatches.first().second else null
         paintPaths = picture.regions.map { Path(it).apply { transform(slant) } }
         lanes = paintPaths.map(::paintLanes)
         lengths = picture.outlines.map { PathMeasure(it, false).length }
@@ -150,13 +151,14 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
                     pointer = e.getPointerId(0)
                     val x = (e.x - left) / scale
                     val y = (e.y - top) / scale
+                    lastX = e.x; lastY = e.y
                     strokes.add(Stroke(selected!!, erasing, Path().apply { moveTo(x, y) }, x, y))
                 } else if (mode == Mode.FOLLOW && !choosing && !done) {
                     pointer = e.getPointerId(0)
                     lastX = e.x; lastY = e.y
                 } else if (!choosing && !done) {
                     lastTime = SystemClock.uptimeMillis()
-                    if (outline < 1f) pencilSound(true)
+                    pencilSound(true)
                     advance(45)
                 }
             }
@@ -164,6 +166,12 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
                 val i = e.findPointerIndex(pointer)
                 if (i >= 0) {
                     val stroke = strokes.last()
+                    val x = e.getX(i)
+                    val y = e.getY(i)
+                    if (!stroke.erase && kotlin.math.hypot(x-lastX,y-lastY)/scale >= .20f) {
+                        playMovingPencil()
+                        lastX = x; lastY = y
+                    }
                     for (h in 0 until e.historySize) stroke.path.lineTo((e.getHistoricalX(i,h)-left)/scale, (e.getHistoricalY(i,h)-top)/scale)
                     stroke.path.lineTo((e.getX(i)-left)/scale, (e.getY(i)-top)/scale)
                     stroke.moved = true
@@ -184,6 +192,12 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
     }
 
     private val hushPencil = Runnable { pencilSound(false) }
+
+    private fun playMovingPencil() {
+        pencilSound(true)
+        removeCallbacks(hushPencil)
+        postDelayed(hushPencil,160)
+    }
 
     private fun follow(x: Float, y: Float) {
         if (pointer < 0 || done || choosing) return
@@ -214,10 +228,7 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
             if (candidate == 1f) break
         }
         if (next <= from) return
-        if (tracing) {
-            pencilSound(true)
-            removeCallbacks(hushPencil); postDelayed(hushPencil,160)
-        }
+        playMovingPencil()
         advanceFraction(next)
     }
 
@@ -399,7 +410,7 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
                     tip[0] = lanes[colors.size].first().left
                     tip[1] = bounds.top + bounds.height()/lanes[colors.size].size/2f + tip[0]*tilt
                 }
-                drawCrayon(canvas,selected ?: palette.last().second)
+                drawCrayon(canvas,selected ?: picture.swatches.first().second)
             }
         }
         canvas.restore()

@@ -332,13 +332,15 @@ class PlayActivity : Activity() {
             openPicker()
         } else if (board.freehand) {
             val available = resources.configuration.screenWidthDp - 34
-            val swatch = ((available / (palette.size+1)) - 4).coerceIn(28,72)
-            palette.forEach { (name, color) ->
+            val colors = pictures[board.page].swatches
+            val swatch = ((available / (colors.size+1)) - 4).coerceIn(28,72)
+            colors.forEach { (name, color) ->
                 val dot = button(if (!board.erasing && board.selected == color) "✓" else "") { board.pick(color) }
                 dot.contentDescription = name
                 dot.textSize = 24f
                 dot.background = rounded(color, 17, ink)
                 dot.isSelected = !board.erasing && board.selected == color
+                dot.setTextColor(if (Color.luminance(color) < .38f) Color.WHITE else ink)
                 dot.setPadding(0,0,0,0)
                 footer.item(dot, swatch, min(swatch,64),2)
             }
@@ -372,7 +374,7 @@ class PlayActivity : Activity() {
             setPadding(dp(8),dp(8),dp(8),dp(8))
         }
         val columns = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) 3 else 2
-        for (group in palette.chunked(columns)) {
+        for (group in pictures[board.page].swatches.chunked(columns)) {
             val row = controls()
             for ((name,color) in group) {
                 val tile = button("") { board.pick(color) }.apply {
