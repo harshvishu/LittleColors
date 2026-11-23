@@ -1,3 +1,22 @@
+# Android and Gradle build outputs
 .gradle/
+.kotlin/
 **/build/
 local.properties
+*.apk
+*.aab
+
+# Local IDE, signing, and macOS files
+.idea/
+*.iml
+*.jks
+*.keystore
+keystore.properties
+.DS_Store
+
+# Local agent tooling and generated previews
+/.agents/
+/.codex/
+/.aws/
+/skills-lock.json
+/Coloring-page-preview.png

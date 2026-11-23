@@ -33,6 +33,35 @@ class PlayActivity : Activity() {
     private var musicEnabled = true
     private var music: MediaPlayer? = null
     private var shelf = 0
+    private val lessons by lazy { loadLearningBooks(this) }
+    private val preferences by lazy { getSharedPreferences("play", MODE_PRIVATE) }
+    private var learningSelected = false
+    private var learningBook = LearningBook.ABC
+    private var learningIndex = 0
+    private var learningMode = Mode.ASSISTED
+    private val lesson get() = lessons.getValue(learningBook)[learningIndex]
+    private var revealVisible = false
+    private var lessonCard: FrameLayout? = null
+    private val lessonBoard: DrawingBoard by lazy {
+        DrawingBoard(this, sounds::play, sounds::pencil) {
+            if (playing && learningSelected && lessonBoard.traceComplete) handler.post(::revealLesson)
+        }
+    }
+    private val activeBoard get() = if (learningSelected) lessonBoard else board
+    private val narration by lazy {
+        LessonNarration(this) { speaking ->
+            val level = if (speaking) .05f else .20f
+            music?.setVolume(level,level)
+        }
+    }
+    private val endIntroduction = Runnable {
+        if (playing && learningSelected && lessonBoard.showingSymbol) {
+            lessonBoard.showingSymbol = false
+            lessonBoard.contentDescription = "Trace ${lesson.symbol}"
+            guide.visibility = View.VISIBLE
+            guide.step()
+        }
+    }
 
     private fun syncMusic() {
         if (playing && resumed && musicEnabled && sounds.enabled) {
@@ -52,7 +81,7 @@ class PlayActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-        val prefs = getSharedPreferences("play", MODE_PRIVATE)
+        val prefs = preferences
         volumeControlStream = AudioManager.STREAM_MUSIC
         sounds = PlaySounds(this).apply { enabled = prefs.getBoolean("sounds", true) }
         board = DrawingBoard(this, { cue ->
@@ -64,6 +93,10 @@ class PlayActivity : Activity() {
         val mode = Mode.values().firstOrNull { it.name == prefs.getString("mode",null) } ?: oldMode
         board.open(prefs.getInt("page", 0).coerceIn(pictures.indices), mode)
         shelf = board.page/10
+        learningSelected = prefs.getBoolean("learning.selected", false)
+        learningBook = if (prefs.getString("learning.book", null) == LearningBook.NUMBERS.key) LearningBook.NUMBERS else LearningBook.ABC
+        learningIndex = lastLesson(learningBook)
+        if (prefs.getBoolean("learning.follow", false)) learningMode = Mode.FOLLOW
         parentScreen()
     }
 
@@ -78,7 +111,7 @@ class PlayActivity : Activity() {
             fullscreen()
             checkPin()
         } else if (::board.isInitialized) {
-            board.cancelTouch()
+            activeBoard.cancelTouch()
             touching = false
             if (playing) guide.touch(false)
         }
@@ -165,17 +198,48 @@ class PlayActivity : Activity() {
     }
 
     private fun parentScreen() {
+        val previousBoard = if (lessonCard != null) lessonBoard else board
         playing = false
+        stopLesson()
         syncMusic()
-        board.cancelTouch()
-        (board.parent as? ViewGroup)?.removeView(board)
+        previousBoard.cancelTouch()
+        (previousBoard.parent as? ViewGroup)?.removeView(previousBoard)
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         root = layout()
-        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; isMotionEventSplittingEnabled = false }
-        val scroll = ScrollView(this).apply { isFillViewport = true; addView(panel) }
-        root.addView(scroll, LinearLayout.LayoutParams(-1,-1))
+        val config = resources.configuration
+        val inset = (config.screenHeightDp / 36).coerceIn(8,32)
+        root.setPadding(dp(12),dp(inset),dp(12),dp(inset))
+        val fixedControls = config.screenHeightDp >= 650
+        val panel = if (fixedControls) root else menuStack().also { content ->
+            root.addView(ScrollView(this).apply { addView(content) }, LinearLayout.LayoutParams(-1,-1))
+        }
         setContentView(root)
         panel.item(label(if (session) "Parent menu" else "Little Colors", 34, true), h = 54)
+        val sections = controls()
+        sections.item(button("Coloring", !learningSelected) { selectSection(false) }.apply { isSelected = !learningSelected },128)
+        sections.item(button("Learning", learningSelected) { selectSection(true) }.apply { isSelected = learningSelected },128)
+        panel.item(sections,h=-2)
+        val content = menuStack()
+        if (fixedControls) {
+            val scroll = ScrollView(this).apply { addView(content); isFillViewport = true }
+            panel.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        } else {
+            val rows = if (config.screenWidthDp >= 600) 2 else 4
+            content.minimumHeight = dp(62 + rows * (if (rows == 2) 148 else 110))
+            panel.addView(content,LinearLayout.LayoutParams(-1,-2))
+        }
+        if (learningSelected) learningChooser(content) else coloringChooser(content)
+        menuModes(panel)
+        playSettings(panel)
+    }
+
+    private fun menuStack() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        isMotionEventSplittingEnabled = false
+    }
+
+    private fun coloringChooser(panel: LinearLayout) {
         val nav = controls()
         nav.item(button("‹") { shelf--; parentScreen() }.apply { isEnabled = shelf > 0; contentDescription = "Previous ten pictures" },52)
         nav.item(label("Levels ${shelf*10+1}–${shelf*10+10}",18,true))
@@ -184,6 +248,7 @@ class PlayActivity : Activity() {
         var pages = controls()
         val roomy = resources.configuration.screenWidthDp >= 600
         val columns = if (roomy) 5 else 3
+        val tileHeight = if (!roomy) 98 else if (resources.configuration.screenHeightDp >= 850) 136 else 118
         for (i in shelf*10 until min((shelf+1)*10,pictures.size)) {
             if ((i%10)%columns == 0) {
                 pages = controls(); panel.item(pages,h=-2)
@@ -198,27 +263,88 @@ class PlayActivity : Activity() {
                     override fun onDraw(c: Canvas) {
                         val s = min(width / 320f, height / 300f)
                         c.save(); c.translate((width-320*s)/2,(height-300*s)/2); c.scale(s,s)
-                        pic.regions.forEachIndexed { n, p ->
-                            pen.style = Paint.Style.FILL; pen.color = pic.previewColors.getOrNull(n) ?: palette[(i+n)%palette.size].second; c.drawPath(p,pen)
-                        }
-                        pic.drawMarks(c,pen)
-                        pen.style = Paint.Style.STROKE; pen.color = ink; pen.strokeWidth = 4.8f; pen.strokeJoin = Paint.Join.ROUND
-                        pic.outlines.forEach { c.drawPath(it,pen) }; c.restore()
+                        pic.drawIllustration(c, pen)
+                        c.restore()
                     }
-                }, LinearLayout.LayoutParams(-1, dp(if (roomy) 96 else 62)))
+                }, LinearLayout.LayoutParams(-1, dp(tileHeight - 40)))
                 addView(label(pic.name, 14, true))
                 setOnClickListener { if (i != board.page) choose(i, board.mode); parentScreen() }
             }
-            pages.item(tile, if (roomy) 103 else 84, if (roomy) 136 else 98)
+            pages.item(tile, if (roomy) 103 else 84, tileHeight)
         }
+    }
+
+    private fun menuModes(panel: LinearLayout) {
         val modes = controls()
+        val currentMode = if (learningSelected) learningMode else board.mode
+        val width = ((resources.configuration.screenWidthDp - 50) / 3).coerceIn(78,104)
         for ((mode,name) in listOf(Mode.ASSISTED to "Assisted",Mode.FOLLOW to "Follow Along",Mode.FREEHAND to "Freehand")) {
-            modes.item(button(name,board.mode == mode) {
-                if (mode != board.mode) choose(board.page,mode)
+            val option = button(name,currentMode == mode) {
+                if (learningSelected) {
+                    learningMode = mode
+                    preferences.edit().putBoolean("learning.follow",mode == Mode.FOLLOW).apply()
+                } else if (mode != board.mode) choose(board.page,mode)
                 parentScreen()
-            }.apply { setPadding(dp(8),0,dp(8),0); textSize = 15f })
+            }.apply {
+                setPadding(dp(4),0,dp(4),0)
+                textSize = 15f
+                isSelected = currentMode == mode
+                if (learningSelected && mode == Mode.FREEHAND) visibility = View.INVISIBLE
+            }
+            modes.item(option,width)
         }
-        panel.item(modes, h = -2)
+        panel.item(modes,h=-2)
+    }
+
+    private fun selectSection(learning: Boolean) {
+        learningSelected = learning
+        preferences.edit().putBoolean("learning.selected", learning).apply()
+        parentScreen()
+    }
+
+    private fun lastLesson(book: LearningBook): Int {
+        val last = if (book == LearningBook.ABC) 25 else 9
+        return preferences.getInt("learning.${book.key}.lesson",0).coerceIn(0,last)
+    }
+
+    private fun learningChooser(panel: LinearLayout) {
+        val books = controls()
+        for (book in LearningBook.entries) {
+            books.item(button(book.title, learningBook == book) {
+                learningBook = book
+                learningIndex = lastLesson(book)
+                preferences.edit().putString("learning.book", book.key).apply()
+                parentScreen()
+            }.apply {
+                textSize = 24f
+                isSelected = learningBook == book
+                contentDescription = if (book == LearningBook.ABC) "ABC letters" else "123 numbers"
+            },128,60)
+        }
+        panel.item(books,h=-2)
+        val columns = ((resources.configuration.screenWidthDp - 24) / 57).coerceIn(4,10)
+        lessons.getValue(learningBook).withIndex().chunked(columns).forEach { group ->
+            val row = controls()
+            for ((index, item) in group) {
+                row.item(button(item.symbol, index == learningIndex) {
+                    chooseLesson(index)
+                    parentScreen()
+                }.apply {
+                    isSelected = index == learningIndex
+                    textSize = 20f
+                    setPadding(0,0,0,0)
+                },48,46,3)
+            }
+            panel.item(row,h=-2)
+        }
+    }
+
+    private fun chooseLesson(index: Int) {
+        learningIndex = index
+        preferences.edit().putInt("learning.${learningBook.key}.lesson",index).apply()
+    }
+
+    private fun playSettings(panel: LinearLayout) {
         panel.item(button(if (sounds.enabled) "♫  Sound on" else "Sound off") {
             sounds.enabled = !sounds.enabled
             getSharedPreferences("play", MODE_PRIVATE).edit().putBoolean("sounds",sounds.enabled).apply()
@@ -230,44 +356,80 @@ class PlayActivity : Activity() {
             getSharedPreferences("play",MODE_PRIVATE).edit().putBoolean("music",musicEnabled).apply()
             parentScreen()
         },220)
-        val status = when {
-            pinned -> "App is pinned"
-            pinAttempt -> "Play is unpinned. Confirm Android’s prompt or check your pinning settings."
-            else -> "Start play to pin the app to the screen."
+        val isPinned = pinned
+        val pinControl = if (pinAttempt && !isPinned) {
+            button("Play is unpinned\nPlay without pinning") { waitingPin = false; play() }.apply {
+                contentDescription = "Play without pinning"
+                textSize = 14f
+            }
+        } else {
+            label(if (isPinned) "App is pinned" else "Start play to pin the app to the screen.",15)
         }
-        panel.item(label(status, 15), h = -2)
-        panel.item(button(if (session && pinned) "Resume play" else "Start play", true) { requestPin() }, 220)
-        if (pinAttempt && !pinned) panel.item(button("Play without pinning") { waitingPin = false; play() }, 220)
-        panel.item(label("Vector illustrations adapted from Twemoji · CC BY 4.0",12),h=-2)
-        if (session) panel.item(button("Exit play", action = ::closePlay), 220)
+        panel.item(pinControl,220)
+        panel.item(button(if (session && isPinned) "Resume play" else "Start play", true) { requestPin() },220)
+        panel.item(label("Vector illustrations adapted from Twemoji · CC BY 4.0",12),h=22)
+        panel.item(button("Exit play", action = ::closePlay).apply {
+            if (!session) visibility = View.INVISIBLE
+        },220)
     }
 
     private fun play() {
+        if (learningSelected) {
+            playLesson()
+            return
+        }
         session = true; playing = true
         syncMusic()
         root = layout()
-        val header = controls()
-        val badge = label("★  " + (board.page + 1) + " / " + pictures.size, 16, true)
-        badge.background = rounded(0xffffdf8e.toInt(),18)
-        badge.contentDescription = "Picture ${board.page+1} of ${pictures.size}"
-        header.item(homeButton(),54,48)
-        header.item(badge,84,38)
-        val name = label(pictures[board.page].name, 27, true)
-        header.addView(name, LinearLayout.LayoutParams(0,dp(54),1f))
-        val exit = button("×") {}
-        exit.textSize = 26f
-        exit.contentDescription = "Hold five seconds to close app"
-        bindHold(exit,5000L,::closePlay)
-        header.item(exit, 54, 48)
-        root.addView(header, LinearLayout.LayoutParams(-1, -2))
+        val title = label(pictures[board.page].name, 24, true)
+        val pictureNumber = label("★  ${board.page+1} / ${pictures.size}", 13).apply {
+            contentDescription = "Picture ${board.page+1} of ${pictures.size}"
+        }
+        val heading = menuStack().apply {
+            gravity = Gravity.CENTER
+            addView(title)
+            addView(pictureNumber)
+        }
+        root.addView(playToolbar(heading),LinearLayout.LayoutParams(-1,dp(54)))
         board.background = rounded(paper, 26, 0xffe0d6ea.toInt())
         (board.parent as? ViewGroup)?.removeView(board)
         root.addView(board, LinearLayout.LayoutParams(-1, 0, 1f))
         footer = controls()
         root.item(footer, w = -1, h = 78)
+        showPlaySurface()
+        refreshPlay()
+    }
+
+    private fun exitButton() = button("×") {}.apply {
+        textSize = 26f
+        contentDescription = "Hold five seconds to close app"
+        bindHold(this,5000L,::closePlay)
+    }
+
+    private fun playToolbar(title: View? = null, replay: View? = null) = FrameLayout(this).apply {
+        isMotionEventSplittingEnabled = false
+        if (title != null) {
+            val reserved = dp(if (replay == null) 58 else 118)
+            addView(title,FrameLayout.LayoutParams(-1,-1).apply { marginStart = reserved; marginEnd = reserved })
+        }
+        addView(homeButton(),FrameLayout.LayoutParams(dp(54),dp(48),Gravity.TOP or Gravity.START).apply {
+            marginStart = dp(4); topMargin = dp(3)
+        })
+        addView(exitButton(),FrameLayout.LayoutParams(dp(54),dp(48),Gravity.TOP or Gravity.END).apply {
+            marginEnd = dp(4); topMargin = dp(3)
+        })
+        if (replay != null) {
+            addView(replay,FrameLayout.LayoutParams(dp(54),dp(48),Gravity.TOP or Gravity.END).apply {
+                marginEnd = dp(62); topMargin = dp(3)
+            })
+        }
+    }
+
+    private fun showPlaySurface() {
         picker = null
+        guideTarget = null
         stage = FrameLayout(this).apply { isMotionEventSplittingEnabled = false; addView(root) }
-        guide = FingerGuide(this, ::locateFinger)
+        guide = FingerGuide(this, { playing && guideTarget == null && activeBoard.guidesFollowing }, ::locateFinger)
         stage.addView(guide)
         confetti = Confetti(this)
         stage.addView(confetti)
@@ -275,12 +437,115 @@ class PlayActivity : Activity() {
         setContentView(stage)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         fullscreen()
-        refreshPlay()
+    }
+
+    private fun playLesson() {
+        stopLesson()
+        session = true
+        playing = true
+        revealVisible = false
+        syncMusic()
+        root = layout()
+
+        val replay = button("♫") { speakLesson() }.apply {
+            contentDescription = "Replay narration"
+            isEnabled = sounds.enabled
+        }
+        root.addView(playToolbar(label(learningBook.title,25,true),replay),LinearLayout.LayoutParams(-1,dp(54)))
+
+        lessonBoard.openTrace(lesson.strokes,learningMode)
+        lessonBoard.contentDescription = lesson.symbol
+        (lessonBoard.parent as? ViewGroup)?.removeView(lessonBoard)
+        val card = FrameLayout(this).apply {
+            isMotionEventSplittingEnabled = false
+            background = rounded(paper,26,0xffe0d6ea.toInt())
+            cameraDistance = resources.displayMetrics.density * 5500f
+            addView(lessonBoard,FrameLayout.LayoutParams(-1,-1))
+        }
+        lessonCard = card
+        root.addView(card,LinearLayout.LayoutParams(-1,0,1f))
+        footer = controls()
+        root.item(footer,w=-1,h=64)
+        showPlaySurface()
+        guide.visibility = View.INVISIBLE
+        if (resumed) handler.postDelayed(endIntroduction,1200)
+        speakLesson()
+    }
+
+    private fun revealLesson() {
+        val card = lessonCard ?: return
+        if (!playing || !learningSelected || revealVisible || !lessonBoard.traceComplete) return
+        revealVisible = true
+        guide.visibility = View.INVISIBLE
+        card.animate().rotationY(90f).setDuration(170).withEndAction {
+            if (lessonCard !== card) return@withEndAction
+            card.removeAllViews()
+            val face = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                contentDescription = "${lesson.revealCaption}. Tap to trace again"
+                setOnClickListener { flipBack(card, this) }
+                isSoundEffectsEnabled = false
+                addView(LessonIllustration(this@PlayActivity, lesson),LinearLayout.LayoutParams(-1,0,1f))
+                addView(label(lesson.revealCaption, 34, true).apply {
+                    setPadding(dp(12),0,dp(12),dp(16))
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                },LinearLayout.LayoutParams(-1,-2))
+            }
+            face.isClickable = false
+            card.addView(face,FrameLayout.LayoutParams(-1,-1))
+            card.rotationY = -90f
+            card.animate().rotationY(0f).setDuration(170).withEndAction {
+                if (lessonCard !== card) return@withEndAction
+                face.isClickable = true
+                val last = learningIndex == lessons.getValue(learningBook).lastIndex
+                footer.item(button("➜", true) {
+                    if (last) parentScreen()
+                    else {
+                        chooseLesson(learningIndex+1)
+                        playLesson()
+                    }
+                }.apply {
+                    textSize = 26f
+                    contentDescription = if (last) "Finish book" else "Next lesson"
+                },100,56)
+                confetti.burst(false)
+                if (resumed) sounds.play(Cue.READY)
+                speakLesson()
+            }.start()
+        }.start()
+    }
+
+    private fun flipBack(card: FrameLayout, face: View) {
+        face.isClickable = false
+        footer.removeAllViews()
+        narration.stop()
+        card.animate().rotationY(-90f).setDuration(170).withEndAction {
+            if (lessonCard !== card) return@withEndAction
+            playLesson()
+            lessonCard?.apply {
+                rotationY = 90f
+                animate().rotationY(0f).setDuration(170).start()
+            }
+        }.start()
+    }
+
+    private fun speakLesson() {
+        if (resumed && playing && learningSelected && sounds.enabled) {
+            narration.play(lesson.recording(revealVisible))
+        }
+    }
+
+    private fun stopLesson() {
+        handler.removeCallbacks(endIntroduction)
+        lessonCard?.animate()?.cancel()
+        lessonCard = null
+        narration.stop()
     }
 
     private fun closePlay() {
         waitingPin = false
-        board.cancelTouch()
+        activeBoard.cancelTouch()
+        stopLesson()
         sounds.stop()
         if (pinned) stopLockTask()
         finishAndRemoveTask()
@@ -387,24 +652,20 @@ class PlayActivity : Activity() {
             grid.addView(row,LinearLayout.LayoutParams(-1,0,1f))
         }
         overlay.addView(grid)
-        overlay.addView(homeButton(),FrameLayout.LayoutParams(dp(48),dp(48),Gravity.TOP or Gravity.START).apply {
-            topMargin = dp(16); marginStart = dp(16)
-        })
-        val exit = button("×") {}.apply { contentDescription = "Hold five seconds to close app" }
-        bindHold(exit,5000L,::closePlay)
-        overlay.addView(exit,FrameLayout.LayoutParams(dp(48),dp(48),Gravity.TOP or Gravity.END).apply {
-            topMargin = dp(16); marginEnd = dp(16)
+        overlay.addView(playToolbar(),FrameLayout.LayoutParams(-1,dp(54),Gravity.TOP).apply {
+            marginStart = dp(12); marginEnd = dp(12); topMargin = dp(8)
         })
         picker = overlay
         stage.addView(overlay,stage.indexOfChild(guide))
     }
 
     private fun locateFinger(t: Float, out: PointF): Boolean {
-        val target = guideTarget ?: board
+        val drawing = activeBoard
+        val target = guideTarget ?: drawing
         if (!target.isShown || target.width <= 0) return false
         target.getLocationInWindow(screenPos)
         stage.getLocationInWindow(stagePos)
-        if (target == board) board.guidePoint(t,out)
+        if (target == drawing) drawing.guidePoint(t,out)
         else out.set(target.width*.5f,target.height*.5f - dp(12)*(1f-t))
         out.offset((screenPos[0]-stagePos[0]).toFloat(),(screenPos[1]-stagePos[1]).toFloat())
         return true
@@ -425,12 +686,35 @@ class PlayActivity : Activity() {
 
     override fun onConfigurationChanged(config: android.content.res.Configuration) {
         super.onConfigurationChanged(config)
-        if (playing && board.choosing) refreshPlay()
+        if (!playing) parentScreen()
+        else if (!learningSelected && board.choosing) refreshPlay()
     }
 
-    override fun onResume() { super.onResume(); resumed = true; syncMusic() }
-    override fun onPause() { resumed = false; syncMusic(); sounds.stop(); board.cancelTouch(); super.onPause() }
-    override fun onDestroy() { music?.release(); sounds.release(); handler.removeCallbacksAndMessages(null); super.onDestroy() }
+    override fun onResume() {
+        super.onResume()
+        resumed = true
+        syncMusic()
+        if (playing && learningSelected && lessonBoard.showingSymbol) handler.postDelayed(endIntroduction,1200)
+    }
+
+    override fun onPause() {
+        resumed = false
+        handler.removeCallbacks(endIntroduction)
+        narration.stop()
+        syncMusic()
+        sounds.stop()
+        activeBoard.cancelTouch()
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        stopLesson()
+        music?.release()
+        sounds.release()
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+
     @Deprecated("Legacy back dispatch is explicitly enabled for pinned play")
     override fun onBackPressed() { if (!playing && !session) super.onBackPressed() }
 }

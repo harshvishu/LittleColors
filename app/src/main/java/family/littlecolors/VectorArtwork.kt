@@ -15,9 +15,8 @@ internal fun Picture.drawMarks(canvas: Canvas, pen: Paint) {
 }
 
 // The bundled artwork is normalized to absolute Bézier commands in board coordinates.
-private fun readPaths(items: JSONArray) = List(items.length()) { i ->
-    val item = items.getJSONArray(i)
-    val tokens = item.getString(1).splitToSequence(' ').filter { it.isNotEmpty() }.iterator()
+internal fun vectorPath(data: String): Path {
+    val tokens = data.splitToSequence(' ').filter { it.isNotEmpty() }.iterator()
     fun number() = tokens.next().toFloat()
     val path = Path()
     while (tokens.hasNext()) {
@@ -30,7 +29,26 @@ private fun readPaths(items: JSONArray) = List(items.length()) { i ->
             else -> error("Unknown artwork command $command")
         }
     }
-    ColoredPath(Color.parseColor(item.getString(0)),path)
+    return path
+}
+
+internal fun readPaths(items: JSONArray) = List(items.length()) { i ->
+    val item = items.getJSONArray(i)
+    ColoredPath(Color.parseColor(item.getString(0)), vectorPath(item.getString(1)))
+}
+
+internal fun Picture.drawIllustration(canvas: Canvas, pen: Paint) {
+    regions.forEachIndexed { i, path ->
+        pen.style = Paint.Style.FILL
+        pen.color = previewColors[i]
+        canvas.drawPath(path, pen)
+    }
+    drawMarks(canvas, pen)
+    pen.style = Paint.Style.STROKE
+    pen.color = ink
+    pen.strokeWidth = 4.8f
+    pen.strokeJoin = Paint.Join.ROUND
+    outlines.forEach { canvas.drawPath(it, pen) }
 }
 
 private val art by lazy {

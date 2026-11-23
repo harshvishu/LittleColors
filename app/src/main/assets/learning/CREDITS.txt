@@ -1,0 +1,9 @@
+Learning illustrations and stroke paths
+Original Little Colors illustrations and paths, with illustrations reused from the Coloring catalog.
+See artwork/CREDITS.txt and artwork/LICENSE-GRAPHICS.txt for adapted Twemoji artwork.
+
+Learning narration
+Offline recordings synthesized with Piper and the en_US-ljspeech-medium voice.
+Voice: https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/ljspeech/medium
+Dataset: The LJ Speech Dataset by Keith Ito and Linda Johnson, public domain.
+https://keithito.com/LJ-Speech-Dataset/

@@ -6,7 +6,7 @@ import android.os.SystemClock
 import android.view.View
 
 /** A visual-only overlay. Input continues to the actual tile, canvas or button below. */
-internal class FingerGuide(context: Context, val locate: (Float, PointF) -> Boolean) : View(context) {
+internal class FingerGuide(context: Context, private val continuous: () -> Boolean, val locate: (Float, PointF) -> Boolean) : View(context) {
     private val point = PointF()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val hand = Path().apply {
@@ -31,11 +31,15 @@ internal class FingerGuide(context: Context, val locate: (Float, PointF) -> Bool
         invalidate()
     }
     override fun onDraw(c: Canvas) {
-        if (held) return
-        val elapsed = SystemClock.uptimeMillis() - starts
-        if (elapsed < 0) { postInvalidateDelayed(-elapsed); return }
-        if (elapsed >= 3600) { schedule(18_000); return }
-        val t = (elapsed % 1200) / 1200f
+        val following = continuous()
+        if (held && !following) return
+        val now = SystemClock.uptimeMillis()
+        val elapsed = now - starts
+        if (!following && elapsed < 0) { postInvalidateDelayed(-elapsed); return }
+        if (!following && elapsed >= 3600) { schedule(18_000); return }
+        val t = if (following) {
+            .5f + .5f * kotlin.math.sin((now % 1400) * (2.0 * Math.PI / 1400)).toFloat()
+        } else (elapsed % 1200) / 1200f
         if (!locate(t,point)) { postInvalidateDelayed(80); return }
         c.save()
         c.translate(point.x,point.y)
