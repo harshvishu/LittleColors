@@ -12,6 +12,7 @@ local.properties
 *.jks
 *.keystore
 keystore.properties
+/signing-backup/
 .DS_Store
 
 # Local agent tooling and generated previews

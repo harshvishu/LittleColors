@@ -32,6 +32,7 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
     private val followLead = 32f
     private val pencilUnitsPerMillisecond = .15f
     private val picture get() = pictures[page]
+    private var orientedLoop = -1
     private var lessonStrokes: List<Path>? = null
     private val outlines get() = lessonStrokes ?: picture.outlines
     val traceComplete get() = lessonStrokes != null && outline == 1f
@@ -43,11 +44,13 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
             invalidate()
         }
     private val lessonInk = 0xff7353ad.toInt()
+    private var outlineDistance = 0f
     private var outline = 0f
     private var fill = 0f
     private val colors = mutableListOf<Int>()
     var selected: Int? = null
         private set
+    val suggestedColor get() = picture.previewColors.getOrNull(colors.size)
     val choosing get() = lessonStrokes == null && !freehand && outline == 1f && !done && selected == null
     val done get() = if (lessonStrokes == null) !freehand && colors.size == picture.regions.size else traceComplete
     val hint get() = when {
@@ -157,6 +160,7 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
         page = index
         mode = newMode
         erasing = false
+        outlineDistance = 0f
         outline = 0f
         fill = 0f
         colors.clear()
@@ -175,8 +179,10 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
 
     fun openTrace(strokePaths: List<Path>, tracingMode: Mode) {
         cancelTouch()
+        orientedLoop = -1
         lessonStrokes = strokePaths
         mode = tracingMode
+        outlineDistance = 0f
         outline = 0f
         selected = null
         showingSymbol = true
@@ -209,22 +215,25 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
 
     private fun advance(ms: Long) {
         val distance = ms * pencilUnitsPerMillisecond
-        if (outline < 1f) advanceFraction(outline + distance / totalLength)
+        if (outline < 1f) advanceOutline(outlineDistance + distance)
         else if (selected != null && !done) {
             val route = fillDistances[colors.size]
             advanceFraction(route.progressAt(route.at(fill) + distance))
         }
     }
 
+    private fun advanceOutline(distance: Float) {
+        outlineDistance = min(totalLength, distance)
+        outline = outlineDistance / totalLength
+        if (outline == 1f) {
+            cancelTouch()
+            if (lessonStrokes == null) sound(Cue.READY)
+            changed()
+        }
+    }
+
     private fun advanceFraction(value: Float) {
-        if (outline < 1f) {
-            outline = min(1f,value)
-            if (outline == 1f) {
-                cancelTouch()
-                if (lessonStrokes == null) sound(Cue.READY)
-                changed()
-            }
-        } else if (selected != null && !done) {
+        if (selected != null && !done) {
             fill = min(1f,value)
             if (fill == 1f) {
                 colors.add(selected!!)
@@ -305,16 +314,51 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
         return lengths.lastIndex
     }
 
+    // A closed digit can be entered anywhere on its rim and traced in either direction.
+    private fun orientLoop(startX: Float, startY: Float, x: Float, y: Float) {
+        val index = strokeIndex(maxOf(outlineDistance, followTarget))
+        val start = strokeDistances[index]
+        if (index == orientedLoop || maxOf(outlineDistance, followTarget) != start) return
+        measure.setPath(outlines[index], false)
+        if (!measure.isClosed) return
+        val length = measure.length
+        val count = kotlin.math.ceil(length / 2f).toInt()
+        val px = (startX - left) / scale
+        val py = (startY - top) / scale
+        var closest = 0
+        var error = Float.MAX_VALUE
+        for (i in 0 until count) {
+            measure.getPosTan(length * i / count, tip, null)
+            val separation = kotlin.math.hypot(tip[0] - px, tip[1] - py)
+            if (separation < error) { error = separation; closest = i }
+        }
+        if (error > followRadius) return
+        val tangent = FloatArray(2)
+        measure.getPosTan(length * closest / count, tip, tangent)
+        val direction = if ((x - startX) * tangent[0] + (y - startY) * tangent[1] >= 0) 1 else -1
+        val loop = Path()
+        for (i in 0 until count) {
+            val sample = (closest + direction * i + count) % count
+            measure.getPosTan(length * sample / count, tip, null)
+            if (i == 0) loop.moveTo(tip[0], tip[1]) else loop.lineTo(tip[0], tip[1])
+        }
+        loop.close()
+        lessonStrokes = outlines.toMutableList().apply { set(index, loop) }
+        orientedLoop = index
+        measureOutlines()
+    }
+
     private fun follow(x: Float, y: Float) {
         if (pointer < 0 || !guidesFollowing) return
         val speedScale = scale
         val travel = kotlin.math.hypot(x-lastX,y-lastY) / speedScale
         if (travel < .20f) return
+        if (lessonStrokes != null && outline < 1f) orientLoop(lastX, lastY, x, y)
         lastX = x
         lastY = y
         val tracing = outline < 1f
         val route = if (tracing) null else fillDistances[colors.size]
-        val drawn = if (route == null) outline * totalLength else route.at(fill)
+        val drawn = if (route == null) outlineDistance else route.at(fill)
         val from = maxOf(drawn,followTarget)
         val stroke = if (tracing) strokeIndex(from) else 0
         val end = route?.length ?: strokeDistances[stroke+1]
@@ -356,7 +400,7 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
             previousY = cursor.y
         }
         // Tiny inaccuracies near an endpoint should never leave the stroke unfinished.
-        if (end-best < 3f && best > from) best = end
+        if (end-best < (if (lessonStrokes != null) 9f else 3f) && best > from) best = end
         if (best <= from) return
         followTarget = best
         if (lastFollowFrame < 0) lastFollowFrame = SystemClock.uptimeMillis()
@@ -368,7 +412,7 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
         lastFollowFrame = now
         val tracing = outline < 1f
         val route = if (tracing) null else fillDistances[colors.size]
-        val drawn = if (route == null) outline * totalLength else route.at(fill)
+        val drawn = if (route == null) outlineDistance else route.at(fill)
         val pending = (followTarget - drawn).coerceAtLeast(0f)
         val speed = .24f + pending * .021f
         val next = minOf(followTarget,drawn + dt * speed)
@@ -377,7 +421,9 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
             lastFollowFrame = -1
             if (pointer < 0) pencilSound(false)
         }
-        if (next > drawn) advanceFraction(if (route == null) next / totalLength else route.progressAt(next))
+        if (next > drawn) {
+            if (route == null) advanceOutline(next) else advanceFraction(route.progressAt(next))
+        }
     }
 
     private fun line(color: Int, weight: Float) {
@@ -468,7 +514,7 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
         val progress = if (guidesFollowing) {
             val lead = 16f + 9f * t
             if (tracing) {
-                val drawn = outline * totalLength
+                val drawn = outlineDistance
                 minOf(strokeDistances[strokeIndex(drawn)+1] - .001f, drawn + lead) / totalLength
             } else {
                 val route = fillDistances[colors.size]
@@ -500,9 +546,10 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
 
     private fun drawOutlineProgress(canvas: Canvas, color: Int, weight: Float) {
         line(color, weight)
-        var remaining = outline * totalLength
+        val distance = outlineDistance
         outlines.forEachIndexed { i, path ->
-            if (outline == 1f || remaining >= lengths[i]) {
+            val remaining = distance - strokeDistances[i]
+            if (outline == 1f || distance >= strokeDistances[i+1]) {
                 canvas.drawPath(path, paint)
             } else if (remaining > 0f || (remaining == 0f && (lessonStrokes != null || mode == Mode.FOLLOW))) {
                 measure.setPath(path, false)
@@ -510,7 +557,6 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
                 segment.reset()
                 if (measure.getSegment(0f, remaining, segment, true)) canvas.drawPath(segment, paint)
             }
-            remaining -= lengths[i]
         }
     }
 
@@ -554,6 +600,21 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
             if (lastTime >= 0 || lastFollowFrame >= 0) postInvalidateOnAnimation()
             return
         }
+        if (done) {
+            for (i in 0..3) {
+                canvas.save()
+                canvas.translate(if (i < 2) 45f + i*14 else 260f + (i-2)*14,
+                    when (i) { 0 -> 105f; 1 -> 86f; 2 -> 175f; else -> 193f })
+                val size = if (i % 2 == 0) 1.15f else .55f
+                canvas.scale(size,size)
+                solid(palette[(page+i)%palette.size].second)
+                canvas.drawPath(sparkle,paint)
+                canvas.restore()
+            }
+            picture.drawIllustration(canvas, paint, colors)
+            canvas.restore()
+            return
+        }
         picture.regions.forEachIndexed { i, path ->
             solid(if (i < colors.size) colors[i] else if (!freehand && outline == 1f && i == colors.size) 0xffffefcf.toInt() else Color.WHITE)
             canvas.drawPath(path, paint)
@@ -561,7 +622,14 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
                 paintRegion(canvas,paintPaths[i],i)
             }
         }
-        if (freehand || outline == 1f) picture.drawMarks(canvas,paint)
+        if (freehand || outline == 1f) {
+            canvas.save()
+            if (!freehand) {
+                for (i in colors.size until picture.regions.size) canvas.clipOutPath(picture.regions[i])
+            }
+            picture.drawMarks(canvas,paint)
+            canvas.restore()
+        }
         line(0xffada0bd.toInt(), 2.6f)
         if (!freehand) paint.pathEffect = dotted
         picture.outlines.forEach { canvas.drawPath(it, paint) }
@@ -580,18 +648,6 @@ internal class DrawingBoard(context: Context, private val sound: (Cue) -> Unit, 
             drawOutlineProgress(canvas, ink, 4.8f)
         }
         if (!freehand) {
-            if (done) {
-                for (i in 0..3) {
-                    canvas.save()
-                    canvas.translate(if (i < 2) 45f + i*14 else 260f + (i-2)*14,
-                        when (i) { 0 -> 105f; 1 -> 86f; 2 -> 175f; else -> 193f })
-                    val size = if (i % 2 == 0) 1.15f else .55f
-                    canvas.scale(size,size)
-                    solid(palette[(page+i)%palette.size].second)
-                    canvas.drawPath(sparkle,paint)
-                    canvas.restore()
-                }
-            }
             if (outline < 1f || selected != null) {
                 if (outline == 0f) {
                     measure.setPath(picture.outlines.first(),false)

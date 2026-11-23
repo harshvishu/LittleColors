@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="privacy_policy_title">Privacy policy</string>
+    <string name="privacy_policy_url" translatable="false">https://harshvishu.github.io/LittleColors/privacy/</string>
+    <string name="privacy_policy_open">Open online</string>
+    <string name="privacy_policy_no_browser">No browser is available.</string>
+    <string name="privacy_policy_text">Little Colors is an offline coloring and learning app for young children. The app does not collect or share personal information from children or adults. It has no accounts, advertising, or analytics.\n\nThe app saves sound, music, drawing mode, and the last selected picture and lessons on this device. Drawings stay on the device during play. To remove the saved settings, clear the app’s storage in Android Settings or uninstall Little Colors.\n\nParents can open the online policy from this menu when screen pinning is off. The online policy includes a way to contact the developer about privacy.</string>
+</resources>

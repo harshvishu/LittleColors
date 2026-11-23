@@ -37,10 +37,10 @@ internal fun readPaths(items: JSONArray) = List(items.length()) { i ->
     ColoredPath(Color.parseColor(item.getString(0)), vectorPath(item.getString(1)))
 }
 
-internal fun Picture.drawIllustration(canvas: Canvas, pen: Paint) {
+internal fun Picture.drawIllustration(canvas: Canvas, pen: Paint, colors: List<Int> = previewColors) {
     regions.forEachIndexed { i, path ->
         pen.style = Paint.Style.FILL
-        pen.color = previewColors[i]
+        pen.color = colors[i]
         canvas.drawPath(path, pen)
     }
     drawMarks(canvas, pen)

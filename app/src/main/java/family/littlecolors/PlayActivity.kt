@@ -2,9 +2,13 @@ package family.littlecolors
 
 import android.app.Activity
 import android.app.ActivityManager
+import android.app.AlertDialog
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.os.*
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.net.Uri
 import family.littlecolors.DrawingBoard.Mode
 import android.graphics.*
 import android.graphics.drawable.GradientDrawable
@@ -81,6 +85,7 @@ class PlayActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        if (Build.VERSION.SDK_INT >= 30) window.setDecorFitsSystemWindows(false)
         val prefs = preferences
         volumeControlStream = AudioManager.STREAM_MUSIC
         sounds = PlaySounds(this).apply { enabled = prefs.getBoolean("sounds", true) }
@@ -102,7 +107,32 @@ class PlayActivity : Activity() {
 
     @Suppress("DEPRECATION")
     private fun fullscreen() {
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.insetsController?.apply {
+                systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                hide(WindowInsets.Type.systemBars())
+            }
+        } else {
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        }
+    }
+
+    private fun setScreen(screen: View) {
+        if (Build.VERSION.SDK_INT < 30) {
+            setContentView(screen)
+            return
+        }
+        val host = FrameLayout(this).apply {
+            setBackgroundColor(cream)
+            addView(screen, FrameLayout.LayoutParams(-1, -1))
+            setOnApplyWindowInsetsListener { view, insets ->
+                val safe = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+                insets
+            }
+        }
+        setContentView(host)
+        host.requestApplyInsets()
     }
 
     override fun onWindowFocusChanged(focus: Boolean) {
@@ -209,11 +239,11 @@ class PlayActivity : Activity() {
         val config = resources.configuration
         val inset = (config.screenHeightDp / 36).coerceIn(8,32)
         root.setPadding(dp(12),dp(inset),dp(12),dp(inset))
-        val fixedControls = config.screenHeightDp >= 650
+        val fixedControls = config.screenWidthDp >= 600 && config.screenHeightDp >= 650
         val panel = if (fixedControls) root else menuStack().also { content ->
             root.addView(ScrollView(this).apply { addView(content) }, LinearLayout.LayoutParams(-1,-1))
         }
-        setContentView(root)
+        setScreen(root)
         panel.item(label(if (session) "Parent menu" else "Little Colors", 34, true), h = 54)
         val sections = controls()
         sections.item(button("Coloring", !learningSelected) { selectSection(false) }.apply { isSelected = !learningSelected },128)
@@ -367,10 +397,29 @@ class PlayActivity : Activity() {
         }
         panel.item(pinControl,220)
         panel.item(button(if (session && isPinned) "Resume play" else "Start play", true) { requestPin() },220)
+        panel.item(button(getString(R.string.privacy_policy_title)) { showPrivacyPolicy() },220,h=44)
         panel.item(label("Vector illustrations adapted from Twemoji · CC BY 4.0",12),h=22)
         panel.item(button("Exit play", action = ::closePlay).apply {
             if (!session) visibility = View.INVISIBLE
         },220)
+    }
+
+    private fun showPrivacyPolicy() {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.privacy_policy_title)
+            .setMessage(R.string.privacy_policy_text)
+            .setPositiveButton(android.R.string.ok, null)
+        if (!pinned) {
+            dialog.setNeutralButton(R.string.privacy_policy_open) { _, _ ->
+                val website = Uri.parse(getString(R.string.privacy_policy_url))
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, website))
+                } catch (_: ActivityNotFoundException) {
+                    Toast.makeText(this, R.string.privacy_policy_no_browser, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        dialog.show()
     }
 
     private fun play() {
@@ -434,7 +483,7 @@ class PlayActivity : Activity() {
         confetti = Confetti(this)
         stage.addView(confetti)
         if (touching) guide.touch(true)
-        setContentView(stage)
+        setScreen(stage)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         fullscreen()
     }
@@ -642,12 +691,15 @@ class PlayActivity : Activity() {
         for (group in pictures[board.page].swatches.chunked(columns)) {
             val row = controls()
             for ((name,color) in group) {
-                val tile = button("") { board.pick(color) }.apply {
-                    contentDescription = name
+                val suggested = color == board.suggestedColor
+                val tile = button(if (suggested) "★" else "") { board.pick(color) }.apply {
+                    contentDescription = if (suggested) "$name, suggested color" else name
+                    textSize = 38f
+                    setTextColor(if (Color.luminance(color) < .38f) Color.WHITE else ink)
                     background = rounded(color,24,ink)
                 }
                 row.addView(tile,LinearLayout.LayoutParams(0,-1,1f).apply { setMargins(dp(5),dp(5),dp(5),dp(5)) })
-                if (guideTarget == null) guideTarget = tile
+                if (suggested) guideTarget = tile
             }
             grid.addView(row,LinearLayout.LayoutParams(-1,0,1f))
         }
