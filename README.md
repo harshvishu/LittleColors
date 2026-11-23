@@ -46,6 +46,8 @@ Android requires the same signing key when installing over an existing copy.
 
 ## License and credits
 
-An application source license is pending. Adapted Twemoji graphics are licensed under CC BY 4.0. [Artwork credits](app/src/main/resources/artwork/CREDITS.txt) · [Graphics license](app/src/main/resources/artwork/LICENSE-GRAPHICS.txt)
+The application source and original project assets use the [PolyForm Noncommercial License 1.0.0](LICENSE.md). You may run, modify, and share Little Colors for permitted noncommercial purposes. Selling copies or using it in commercial projects requires separate permission. The license also describes permitted uses for certain organizations. [Copyright and third-party notices](NOTICE)
+
+Adapted Twemoji graphics are licensed under CC BY 4.0. [Artwork credits](app/src/main/resources/artwork/CREDITS.txt) · [Graphics license](app/src/main/resources/artwork/LICENSE-GRAPHICS.txt)
 
 Learning narration was generated with Piper using the LJSpeech voice. [Narration and dataset credits](app/src/main/assets/learning/CREDITS.txt)

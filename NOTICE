@@ -1,0 +1,15 @@
+Little Colors
+
+Required Notice: Copyright 2026 Harsh Vishwakarma
+
+LICENSE.md applies to the Little Colors application source and original project
+assets. Third-party material retains its documented terms.
+
+Adapted Twemoji artwork is distributed under CC BY 4.0. See
+app/src/main/resources/artwork/CREDITS.txt and LICENSE-GRAPHICS.txt in that directory.
+
+Learning narration uses Piper's LJSpeech voice. See
+app/src/main/assets/learning/CREDITS.txt for voice and public-domain dataset credits.
+
+The Gradle Wrapper retains its upstream Apache-2.0 license and copyright notices.
+See the wrapper scripts and META-INF/LICENSE in gradle/wrapper/gradle-wrapper.jar.
