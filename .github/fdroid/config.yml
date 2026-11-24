@@ -1,0 +1,10 @@
+repo_url: https://harshvishu.github.io/LittleColors/fdroid/repo
+repo_name: Little Colors
+repo_description: Official Little Colors releases from the app developer.
+archive_older: 0
+repo_keyalias: littlecolors-repo
+keystore: repo.p12
+keystorepass:
+  env: FDROID_KEYSTORE_PASSWORD
+keypass:
+  env: FDROID_KEYSTORE_PASSWORD

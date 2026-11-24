@@ -46,6 +46,8 @@ Android requires the same signing key when installing over an existing copy.
 
 ## Contribute
 
+- Use OpenSpec for app changes. Start with the [repository instructions](AGENTS.md) and review the [current specs](openspec/specs/).
+- The [release guide](docs/releases.md) covers GitHub Actions artifacts, GitHub Releases, and the F-Droid feed.
 - The native Kotlin UI and drawing engine live in [the Little Colors package](app/src/main/java/family/littlecolors).
 - The coloring catalog uses [bundled vector paths and palettes](app/src/main/resources/artwork/pages.json). The [learning catalog](app/src/main/assets/learning/lessons.json) defines the stroke order and reveal for each lesson.
 - Before opening a pull request, build and run lint, then try the affected flow in an emulator or on a device. For UI or touch issues, include the device, Android version, orientation, drawing mode, and steps to reproduce. [Report an issue](https://github.com/harshvishu/LittleColors/issues)
