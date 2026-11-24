@@ -28,6 +28,10 @@ gh secret set PAGES_PUBLISH_TOKEN --repo "$repo" --env release
 
 Keep **Settings → Pages** on **Deploy from a branch**, using `privacy-policy` and `/docs`. This serves the privacy policy and the existing F-Droid feed. The repository-scoped Pages credential triggers deployment when the workflow pushes the feed update. [GitHub Pages publishing sources](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
 
+## Check the Pages token
+
+From **Actions → Release Little Colors → Run workflow**, select `main` and enable **Check Pages token write access without publishing**. The workflow uses the `release` environment token for a dry-run push to `privacy-policy`.
+
 ## Build and publish
 
 1. Set a new numeric `versionName` such as `1.11` and increase `versionCode` in [`app/build.gradle`](../app/build.gradle). The F-Droid feed already has version `1.10`, code `11`. Merge the changes into `main`.
