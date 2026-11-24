@@ -1,0 +1,148 @@
+name: Release Little Colors
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to GitHub Releases and F-Droid
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ inputs.publish && 'little-colors-publish' || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check publish source
+        if: inputs.publish && (github.repository != 'harshvishu/LittleColors' || github.ref != format('refs/heads/{0}', github.event.repository.default_branch))
+        run: |
+          echo '::error::Publishing requires the default branch of harshvishu/LittleColors.'
+          exit 1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build and lint the release variant
+        run: |
+          sdkmanager --install 'platforms;android-36' 'build-tools;36.0.0'
+          ./gradlew --no-daemon :app:assembleRelease :app:lintRelease
+          mkdir release-build
+          cp app/build/outputs/apk/release/app-release-unsigned.apk app/build/reports/lint-results-release.html release-build/
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: release-build
+          path: release-build/
+          if-no-files-found: error
+          overwrite: true
+
+  publish:
+    if: inputs.publish && github.repository == 'harshvishu/LittleColors' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Check out the F-Droid Pages source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: privacy-policy
+          path: pages-source
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: release-build
+          path: release-build
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install release tools
+        run: |
+          sdkmanager --install 'build-tools;36.0.0'
+          echo "$ANDROID_HOME/build-tools/36.0.0" >> "$GITHUB_PATH"
+          python3 -m venv "$RUNNER_TEMP/fdroid-venv"
+          "$RUNNER_TEMP/fdroid-venv/bin/pip" install 'fdroidserver==2.4.5'
+          echo "$RUNNER_TEMP/fdroid-venv/bin" >> "$GITHUB_PATH"
+      - name: Sign and prepare release files
+        id: prepare
+        env:
+          APP_KEYSTORE_BASE64: ${{ secrets.APP_KEYSTORE_BASE64 }}
+          APP_KEYSTORE_PASSWORD: ${{ secrets.APP_KEYSTORE_PASSWORD }}
+          FDROID_KEYSTORE_BASE64: ${{ secrets.FDROID_KEYSTORE_BASE64 }}
+          FDROID_KEYSTORE_PASSWORD: ${{ secrets.FDROID_KEYSTORE_PASSWORD }}
+        run: |
+          bash .github/scripts/prepare-release.sh \
+            "$GITHUB_WORKSPACE/release-build/app-release-unsigned.apk" \
+            "$GITHUB_WORKSPACE/pages-source" "$GITHUB_WORKSPACE/release-files"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: LittleColors-${{ steps.prepare.outputs.tag }}
+          path: release-files/
+          if-no-files-found: error
+          overwrite: true
+      - name: Check or stage the GitHub Release
+        id: github_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
+        run: bash .github/scripts/stage-github-release.sh
+      - name: Push the signed F-Droid index and packages
+        if: steps.prepare.outputs.pages_changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAGES_PUBLISH_TOKEN }}
+          RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
+          APK_NAME: ${{ steps.prepare.outputs.apk }}
+        run: |
+          : "${GH_TOKEN:?Set PAGES_PUBLISH_TOKEN in the release environment}"
+          gh auth setup-git --hostname github.com
+          git -C pages-source add -- docs/fdroid
+          git -C pages-source add -f -- "docs/fdroid/repo/$APK_NAME"
+          git -C pages-source -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "Publish Little Colors $RELEASE_TAG to F-Droid" -m "Source-Commit: $GITHUB_SHA"
+          git -C pages-source push origin HEAD:refs/heads/privacy-policy
+      - name: Verify the F-Droid update is live
+        env:
+          APK_NAME: ${{ steps.prepare.outputs.apk }}
+        run: |
+          feed='https://harshvishu.github.io/LittleColors/fdroid/repo'
+          expected=$(shasum -a 256 pages-source/docs/fdroid/repo/entry.jar | cut -d ' ' -f 1)
+          for attempt in {1..30}; do
+            if curl -fsS --max-time 15 "$feed/entry.jar?release=$GITHUB_RUN_ID-$attempt" -o "$RUNNER_TEMP/entry.jar" &&
+                [[ $(shasum -a 256 "$RUNNER_TEMP/entry.jar" | cut -d ' ' -f 1) == "$expected" ]]; then
+              for asset in "$APK_NAME" "${APK_NAME%.apk}_src.tar.gz"; do
+                curl -fsS --retry 3 --max-time 30 "$feed/$asset" -o "$RUNNER_TEMP/$asset"
+                cmp "release-files/$asset" "$RUNNER_TEMP/$asset"
+              done
+              exit 0
+            fi
+            sleep 10
+          done
+          echo '::error::The new F-Droid index is not live yet. Check the Pages build and rerun this workflow.'
+          exit 1
+      - name: Publish the GitHub Release
+        if: steps.github_release.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
+        run: gh release edit "$RELEASE_TAG" --draft=false

@@ -1,0 +1,17 @@
+schema: spec-driven
+
+context: |
+  Little Colors is an offline Android coloring and early-learning game for toddlers.
+  It uses one native Kotlin app module, Android Views and Canvas, JDK 17, and Android API 28 or later.
+  The app bundles artwork and audio. Settings stay on the device and drawings live in memory.
+  Read AGENTS.md for code ownership, existing decisions, and verification. The specs under openspec/specs describe current product behavior.
+
+rules:
+  proposal:
+    - Name the affected capabilities and keep the change scoped to the request.
+  specs:
+    - Describe observable behavior and update the existing capability when one owns that behavior.
+  design:
+    - Follow the existing native Views and Canvas architecture. Explain any change to stored preferences or bundled asset formats.
+  tasks:
+    - Include focused verification of affected modes and flows. Specify device or emulator checks for touch, layout, and audio changes.

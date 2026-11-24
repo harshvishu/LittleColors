@@ -11,13 +11,21 @@ local.properties
 *.iml
 *.jks
 *.keystore
+*.p12
 keystore.properties
 /signing-backup/
 .DS_Store
 
 # Local agent tooling and generated previews
+/.gitnexus/
 /.agents/
 /.codex/
 /.aws/
 /skills-lock.json
 /Coloring-page-preview.png
+
+# Generated OpenSpec editor integrations
+/.agent/skills/openspec-*/
+/.agent/workflows/opsx-*.md
+/.github/skills/openspec-*/
+/.github/prompts/opsx-*.prompt.md
