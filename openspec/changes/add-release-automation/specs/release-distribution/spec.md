@@ -6,7 +6,7 @@ The release workflow SHALL assemble and lint the release variant and provide a b
 
 #### Scenario: Build only
 
-- **WHEN** a maintainer runs the workflow with publishing disabled
+- **WHEN** a maintainer runs the workflow with publishing and the Pages token check both disabled
 - **THEN** the workflow uploads the unsigned release APK and lint report to the Actions run without publishing either channel
 
 ### Requirement: Publish to both distribution channels
@@ -27,3 +27,12 @@ The workflow SHALL sign the APK with Little Colors' existing distribution key an
 
 - **WHEN** publishing is retried from the same commit after updating the F-Droid branch
 - **THEN** the workflow reuses the prepared files and can finish the GitHub Release without changing the published APK
+
+### Requirement: Pages token verification
+
+The workflow SHALL offer a check of the configured Pages token from the default branch using the same Git push authentication as publication.
+
+#### Scenario: Check the token in isolation
+
+- **WHEN** a maintainer enables the Pages token check
+- **THEN** the workflow reports the result of a dry-run push to the Pages branch without building, signing, or publishing a release

@@ -7,6 +7,10 @@ on:
         description: Publish to GitHub Releases and F-Droid
         type: boolean
         default: false
+      verify_pages_token:
+        description: Check Pages token write access without publishing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,11 +20,30 @@ defaults:
     shell: bash
 
 concurrency:
-  group: ${{ inputs.publish && 'little-colors-publish' || github.run_id }}
+  group: ${{ inputs.publish && !inputs.verify_pages_token && 'little-colors-publish' || github.run_id }}
   cancel-in-progress: false
 
 jobs:
+  verify-pages-token:
+    if: inputs.verify_pages_token
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: release
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: privacy-policy
+          persist-credentials: false
+      - name: Check Pages push credentials
+        env:
+          GH_TOKEN: ${{ secrets.PAGES_PUBLISH_TOKEN }}
+        run: |
+          : "${GH_TOKEN:?Set PAGES_PUBLISH_TOKEN in the release environment}"
+          gh auth setup-git --hostname github.com
+          git push --dry-run origin HEAD:refs/heads/privacy-policy
+
   build:
+    if: ${{ !inputs.verify_pages_token }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -54,7 +77,7 @@ jobs:
           overwrite: true
 
   publish:
-    if: inputs.publish && github.repository == 'harshvishu/LittleColors' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: inputs.publish && !inputs.verify_pages_token && github.repository == 'harshvishu/LittleColors' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
