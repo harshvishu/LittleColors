@@ -18,9 +18,15 @@ An offline Android app for toddlers to color pictures, trace letters, and learn 
 
 Artwork, narration, and sound effects are bundled in the app. Play works offline.
 
+[Privacy policy](https://harshvishu.github.io/LittleColors/privacy/)
+
+## Install with F-Droid
+
+On Android, open the [Little Colors F-Droid repository](https://harshvishu.github.io/LittleColors/fdroid/repo/) and use the repository link or QR code to add it to the F-Droid app. Then search for Little Colors to install it and receive updates.
+
 ## Build and install
 
-Use JDK 17 and the Android SDK with API 35 installed. Set `ANDROID_HOME` to your SDK directory or let Android Studio configure it. The app runs on Android 9 (API 28) and newer.
+Use JDK 17 and the Android SDK with API 36 installed. Set `ANDROID_HOME` to your SDK directory or let Android Studio configure it. The app runs on Android 9 (API 28) and newer.
 
 ```sh
 git clone https://github.com/harshvishu/LittleColors.git
