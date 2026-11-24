@@ -7,3 +7,4 @@
 
 - [x] 2.1 Document the Actions environment, credentials, first eligible version, and retry procedure.
 - [x] 2.2 Validate the workflow, OpenSpec change, and release preparation without publishing a live release.
+- [x] 2.3 Verify SDK setup and release artifact creation on the hosted Actions runner.
