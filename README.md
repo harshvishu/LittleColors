@@ -12,7 +12,7 @@ An offline Android app for toddlers to color pictures, trace letters, and learn 
 
 ## Play
 
-- **Coloring** has 100 pictures, each with its own six-color palette. Hold to trace and fill in **Assisted**, move near the guide in **Follow Along**, or draw and erase in **Freehand**.
+- **Coloring** has 100 pictures, each with its own six-color palette. Hold to trace and fill in **Assisted**, move near the guide in **Follow Along**, or draw and erase in **Freehand**. With sound on, the app says the picture's name when guided coloring finishes.
 - **Learning** has uppercase **A–Z** and numbers **1–10**. Finishing a trace flips the card to a picture or a group to count. Tap the card to trace again or use the speaker button to repeat the narration. Each book remembers its last lesson.
 - **Parent controls** include sound and music toggles. **Start play** requests Android screen pinning. Hold **Home** for two seconds to return to the Parent menu or **×** for five seconds to exit.
 
@@ -58,4 +58,4 @@ The application source and original project assets use the [PolyForm Noncommerci
 
 Adapted Twemoji graphics are licensed under CC BY 4.0. [Artwork credits](app/src/main/resources/artwork/CREDITS.txt) · [Graphics license](app/src/main/resources/artwork/LICENSE-GRAPHICS.txt)
 
-Learning narration was generated with Piper using the LJSpeech voice. [Narration and dataset credits](app/src/main/assets/learning/CREDITS.txt)
+Learning narration and spoken picture names were generated with Piper using the LJSpeech voice. [Learning credits](app/src/main/assets/learning/CREDITS.txt) · [Coloring audio credits](app/src/main/assets/coloring/CREDITS.txt)

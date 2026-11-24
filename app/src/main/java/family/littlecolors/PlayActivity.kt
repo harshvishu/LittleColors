@@ -14,6 +14,7 @@ import android.graphics.*
 import android.graphics.drawable.GradientDrawable
 import android.view.*
 import android.widget.*
+import java.util.Locale
 import kotlin.math.min
 
 class PlayActivity : Activity() {
@@ -58,6 +59,12 @@ class PlayActivity : Activity() {
             music?.setVolume(level,level)
         }
     }
+    private val speakPictureName = Runnable {
+        if (playing && resumed && !learningSelected && board.done && sounds.enabled) {
+            val name = pictures[board.page].name.lowercase(Locale.ROOT).replace(' ', '_')
+            narration.play("coloring/speech/$name.wav")
+        }
+    }
     private val endIntroduction = Runnable {
         if (playing && learningSelected && lessonBoard.showingSymbol) {
             lessonBoard.showingSymbol = false
@@ -91,7 +98,11 @@ class PlayActivity : Activity() {
         sounds = PlaySounds(this).apply { enabled = prefs.getBoolean("sounds", true) }
         board = DrawingBoard(this, { cue ->
             sounds.play(cue)
-            if (playing && cue != Cue.TOUCH) confetti.burst(cue == Cue.FINISH)
+            if (playing && cue != Cue.TOUCH) {
+                confetti.burst(cue == Cue.FINISH)
+                // Let the chime fade before saying the name.
+                if (cue == Cue.FINISH && sounds.enabled) handler.postDelayed(speakPictureName, 650L)
+            }
         }, sounds::pencil) { if (playing) refreshPlay() }
         musicEnabled = prefs.getBoolean("music",true)
         val oldMode = if (prefs.getBoolean("free",false)) Mode.FREEHAND else Mode.ASSISTED
@@ -427,6 +438,7 @@ class PlayActivity : Activity() {
             playLesson()
             return
         }
+        stopNarration()
         session = true; playing = true
         syncMusic()
         root = layout()
@@ -588,6 +600,11 @@ class PlayActivity : Activity() {
         handler.removeCallbacks(endIntroduction)
         lessonCard?.animate()?.cancel()
         lessonCard = null
+        stopNarration()
+    }
+
+    private fun stopNarration() {
+        handler.removeCallbacks(speakPictureName)
         narration.stop()
     }
 
@@ -752,7 +769,7 @@ class PlayActivity : Activity() {
     override fun onPause() {
         resumed = false
         handler.removeCallbacks(endIntroduction)
-        narration.stop()
+        stopNarration()
         syncMusic()
         sounds.stop()
         activeBoard.cancelTouch()
