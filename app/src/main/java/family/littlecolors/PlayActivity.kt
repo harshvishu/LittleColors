@@ -543,10 +543,21 @@ class PlayActivity : Activity() {
             card.removeAllViews()
             val face = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                contentDescription = "${lesson.revealCaption}. Tap to trace again"
+                contentDescription = if (lesson.book == LearningBook.NUMBERS) {
+                    "${lesson.revealCaption}. Tap objects to count, or tap caption to trace again"
+                } else {
+                    "${lesson.revealCaption}. Tap to trace again"
+                }
                 setOnClickListener { flipBack(card, this) }
                 isSoundEffectsEnabled = false
-                addView(LessonIllustration(this@PlayActivity, lesson),LinearLayout.LayoutParams(-1,0,1f))
+                val onItemCounted: ((Int) -> Unit)? = if (lesson.book == LearningBook.NUMBERS) {
+                    { count ->
+                        if (resumed && playing && learningSelected && revealVisible && sounds.enabled) {
+                            narration.play("learning/speech/count_$count.wav")
+                        }
+                    }
+                } else null
+                addView(LessonIllustration(this@PlayActivity, lesson, onItemCounted),LinearLayout.LayoutParams(-1,0,1f))
                 addView(label(lesson.revealCaption, 34, true).apply {
                     setPadding(dp(12),0,dp(12),dp(16))
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -601,6 +612,13 @@ class PlayActivity : Activity() {
         lessonCard?.animate()?.cancel()
         lessonCard = null
         stopNarration()
+    }
+
+    private fun speakSwatch(name: String) {
+        if (playing && resumed && !learningSelected && sounds.enabled) {
+            val slug = name.lowercase(Locale.ROOT).replace(' ', '_')
+            narration.play("coloring/colors/$slug.wav")
+        }
     }
 
     private fun stopNarration() {
@@ -666,7 +684,10 @@ class PlayActivity : Activity() {
             val colors = pictures[board.page].swatches
             val swatch = ((available / (colors.size+1)) - 4).coerceIn(28,72)
             colors.forEach { (name, color) ->
-                val dot = button(if (!board.erasing && board.selected == color) "✓" else "") { board.pick(color) }
+                val dot = button(if (!board.erasing && board.selected == color) "✓" else "") {
+                    speakSwatch(name)
+                    board.pick(color)
+                }
                 dot.contentDescription = name
                 dot.textSize = 24f
                 dot.background = rounded(color, 17, ink)
@@ -709,7 +730,10 @@ class PlayActivity : Activity() {
             val row = controls()
             for ((name,color) in group) {
                 val suggested = color == board.suggestedColor
-                val tile = button(if (suggested) "★" else "") { board.pick(color) }.apply {
+                val tile = button(if (suggested) "★" else "") {
+                    speakSwatch(name)
+                    board.pick(color)
+                }.apply {
                     contentDescription = if (suggested) "$name, suggested color" else name
                     textSize = 38f
                     setTextColor(if (Color.luminance(color) < .38f) Color.WHITE else ink)

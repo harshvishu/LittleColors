@@ -3,3 +3,6 @@ Offline recordings synthesized with Piper 1.4.2 and the en_US-ljspeech-medium vo
 Voice: https://huggingface.co/rhasspy/piper-voices/tree/e5349433ed883a32f893a434dc43a6c66b95ef7c/en/en_US/ljspeech/medium
 Dataset: The LJ Speech Dataset by Keith Ito and Linda Johnson, public domain.
 https://keithito.com/LJ-Speech-Dataset/
+
+Coloring swatch names (colors/*.wav)
+Offline recordings synthesized with macOS speech synthesis (say / afconvert, 22050 Hz 16-bit mono PCM).
