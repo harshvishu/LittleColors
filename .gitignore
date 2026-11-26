@@ -12,7 +12,15 @@ local.properties
 *.jks
 *.keystore
 *.p12
+*.pem
+*.key
+*-password
+*passphrase*
 keystore.properties
+google-services.json
+.env
+.env.*
+!.env.example
 /signing-backup/
 .DS_Store
 
