@@ -7,3 +7,6 @@ Offline recordings synthesized with Piper and the en_US-ljspeech-medium voice.
 Voice: https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/ljspeech/medium
 Dataset: The LJ Speech Dataset by Keith Ito and Linda Johnson, public domain.
 https://keithito.com/LJ-Speech-Dataset/
+
+Counting clips (speech/count_1.wav - speech/count_10.wav)
+Offline recordings synthesized with macOS speech synthesis (say / afconvert, 22050 Hz 16-bit mono PCM).
