@@ -1,0 +1,27 @@
+title = "Little Colors Secret Scanning Configuration"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "littlecolors-keystore-base64"
+description = "Base64-encoded PKCS#12 or Java keystore payload"
+regex = '''(?i)(APP_KEYSTORE_BASE64|FDROID_KEYSTORE_BASE64|keystore[_-]?base64)\s*[:=]\s*["']?[A-Za-z0-9+/=]{64,}["']?'''
+tags = ["key", "keystore", "littlecolors"]
+
+[[rules]]
+id = "littlecolors-signing-password"
+description = "Hardcoded signing or keystore password assignment"
+regex = '''(?i)(APP_KEYSTORE_PASSWORD|FDROID_KEYSTORE_PASSWORD|storePassword|keyPassword|app-password|repo-password|upload-password)\s*[:=]\s*["'][^"'\s]{6,}["']'''
+tags = ["password", "keystore", "littlecolors"]
+
+[allowlist]
+description = "Allowlist documented public certificate SHA-256 fingerprints"
+regexes = [
+  '''EF00318A21655B29DBF05677493274FBCF803D8D089CA4EF0FD77587F353A5EF''',
+  '''B39625A96F1EBF888CE98EA1DC4772C1F53E0BF006F2060F4138F2156DBF7FC9''',
+]
+paths = [
+  '''^docs/release-runbook\.md$''',
+  '''^\.gitleaks\.toml$''',
+]
